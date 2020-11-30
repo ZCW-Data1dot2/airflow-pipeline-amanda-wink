@@ -3,8 +3,10 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 
-def NWHL_2017_format():
-    NWHL_2017 = pd.read_excel('~/Documents/PythonProjects/Airflow_Project/NWHL Skater and Team Stats 2017-18.xlsx', sheet_name='NWHL Skaters 201718')
+root_in = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/input_files/'
+root_out = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/output_files/'
+def NWHL_2017_format(root_in=root_in, root_out=root_out):
+    NWHL_2017 = pd.read_excel(root_in + 'NWHL Skater and Team Stats 2017-18.xlsx', sheet_name='NWHL Skaters 201718')
     NWHL_2017.drop(columns=['SOG', 'Sh%', 'SOG/G'], inplace=True)
     NWHL_2017.rename(columns={'Tm': 'Team', 'Name': 'Player', 'P': 'Pos', 'P.1':'P', 'EN': 'ENG', 'Pts/G': 'Pts/GP'}, inplace=True)
     NWHL_2017.insert(1, 'League', ['NWHL'] * len(NWHL_2017))
@@ -14,10 +16,10 @@ def NWHL_2017_format():
     NWHL_2017.fillna(fill_dict, inplace=True)
     NWHL_2017['GP'].fillna('0', inplace=True)
     NWHL_2017['Pl/Mi'] = [None] * len(NWHL_2017)
-    NWHL_2017.to_csv('~/Documents/PythonProjects/Airflow_Project/NWHL_2017.csv', index=False)
+    NWHL_2017.to_csv(root_out + '/NWHL_2017.csv', index=False)
 
-def CWHL_2017_format():
-    CWHL_2017 = pd.read_excel('~/Documents/PythonProjects/Airflow_Project/CWHL Skater and Team Stats 2017-18.xlsx', sheet_name='Skaters')
+def CWHL_2017_format(root_in=root_in, root_out=root_out):
+    CWHL_2017 = pd.read_excel(root_in + 'CWHL Skater and Team Stats 2017-18.xlsx', sheet_name='Skaters')
     CWHL_2017.rename(columns={'Name': 'Player', '#': 'No'}, inplace=True)
     CWHL_2017.drop(labels=[152, 153, 154, 155], inplace=True)
     keys = CWHL_2017.columns[10:29]
@@ -34,13 +36,13 @@ def CWHL_2017_format():
     CWHL_2017_format.insert(7, 'Age', empty_col)
     CWHL_2017_format.insert(8, 'Nat', empty_col)
     CWHL_2017_format.insert(1, 'League', ['CWHL'] * len(CWHL_2017_format))
-    CWHL_2017_format.to_csv('~/Documents/PythonProjects/Airflow_Project/CWHL_2017.csv', index=False)
+    CWHL_2017_format.to_csv(root_out + 'CWHL_2017.csv', index=False)
 
-def Combine():
-    NWHL_2017 = pd.read_csv('~/Documents/PythonProjects/Airflow_Project/NWHL_2017.csv')
-    CWHL_2017_format = pd.read_csv('~/Documents/PythonProjects/Airflow_Project/CWHL_2017.csv')
+def Combine(root_out=root_out):
+    NWHL_2017 = pd.read_csv(root_out + 'NWHL_2017.csv')
+    CWHL_2017_format = pd.read_csv(root_out + 'CWHL_2017.csv')
     WIH_2017 = pd.concat([NWHL_2017, CWHL_2017_format], ignore_index=True)
-    WIH_2017.to_csv('~/Documents/PythonProjects/Airflow_Project/W_IceHockey_2017.csv', index=False)
+    WIH_2017.to_csv(root_out + 'W_IceHockey_2017.csv', index=False)
 
 dag = DAG('NWHL_2017_table_format', description='Formats NWHL 2017 data',
           schedule_interval='@once',
