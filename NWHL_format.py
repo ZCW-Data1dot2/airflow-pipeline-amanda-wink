@@ -2,6 +2,9 @@ import pandas as pd
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
+from sqlalchemy import create_engine
+import os
+import mysql.connector
 
 root_in = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/input_files/'
 root_out = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/output_files/'
@@ -43,6 +46,14 @@ def Combine(root_out=root_out):
     CWHL_2017_format = pd.read_csv(root_out + 'CWHL_2017.csv')
     WIH_2017 = pd.concat([NWHL_2017, CWHL_2017_format], ignore_index=True)
     WIH_2017.to_csv(root_out + 'W_IceHockey_2017.csv', index=False)
+    
+def convert_to_sql(root_out=root_out):
+    ih_df = pd.read_csv(root_out + 'W_IceHockey_2017.csv')
+    pw=os.getenv('MYSQL')
+    str_sql='mysql+mysqlconnector://amanda_w:'+pw+'@localhost'
+    engine=create_engine(str_sql)
+    ih_df.to_sql(name='w_h', con=engine, schema='hockey', if_exists='replace')
+    #print("made it")
 
 dag = DAG('NWHL_2017_table_format', description='Formats NWHL 2017 data',
           schedule_interval='@once',
@@ -51,6 +62,7 @@ dag = DAG('NWHL_2017_table_format', description='Formats NWHL 2017 data',
 NWHL_2017_operator = PythonOperator(task_id='NWHL_2017_format', python_callable=NWHL_2017_format, dag=dag)
 CWHL_2017_operator = PythonOperator(task_id='CWHL_2017_format', python_callable=CWHL_2017_format, dag=dag)
 Combine_operator = PythonOperator(task_id='Combine_tables', python_callable=Combine, dag=dag)
+SQL_operator = PythonOperator(task_id='Upload_db', python_callable=convert_to_sql, dag=dag)
 
 
-[NWHL_2017_operator, CWHL_2017_operator] >> Combine_operator
+[NWHL_2017_operator, CWHL_2017_operator] >> Combine_operator >> SQL_operator
