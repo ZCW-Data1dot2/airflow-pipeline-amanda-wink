@@ -53,7 +53,20 @@ def convert_to_sql(root_out=root_out):
     str_sql='mysql+mysqlconnector://amanda_w:'+pw+'@localhost'
     engine=create_engine(str_sql)
     ih_df.to_sql(name='w_h', con=engine, schema='hockey', if_exists='replace')
-    #print("made it")
+    engine.dispose()
+
+def print_stats():
+    pw=os.getenv('MYSQL')
+    str_sql='mysql+mysqlconnector://amanda_w:'+pw+'@localhost/hockey'
+    engine=create_engine(str_sql)
+    with engine.connect() as connection:
+        result = connection.execute('select G, Player, No, League, Team from w_h order by G DESC LIMIT 5;')
+        print_results = result.fetchall()
+        print("Top Goal Scorers 2017 \n")
+        for row in range(len(print_results)):
+            for val in print_results[row]:
+                print(str(val), end=" ")
+            print(" \n")
 
 dag = DAG('NWHL_2017_table_format', description='Formats NWHL 2017 data',
           schedule_interval='@once',
@@ -63,6 +76,7 @@ NWHL_2017_operator = PythonOperator(task_id='NWHL_2017_format', python_callable=
 CWHL_2017_operator = PythonOperator(task_id='CWHL_2017_format', python_callable=CWHL_2017_format, dag=dag)
 Combine_operator = PythonOperator(task_id='Combine_tables', python_callable=Combine, dag=dag)
 SQL_operator = PythonOperator(task_id='Upload_db', python_callable=convert_to_sql, dag=dag)
+Print_stat_operator = PythonOperator(task_id='Print_stat', python_callable=print_stats, dag=dag)
 
 
-[NWHL_2017_operator, CWHL_2017_operator] >> Combine_operator >> SQL_operator
+[NWHL_2017_operator, CWHL_2017_operator] >> Combine_operator >> SQL_operator >> Print_stat_operator
