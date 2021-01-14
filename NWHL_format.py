@@ -4,7 +4,11 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from sqlalchemy import create_engine
 import os
-import mysql.connector
+
+user=os.getenv('MYSQL_user')
+pw=os.getenv('MYSQL')
+str_sql = 'mysql+mysqlconnector://' + user + ':' + pw + '@localhost'
+m_engine = create_engine(str_sql)
 
 root_in = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/input_files/'
 root_out = '~/Documents/PythonProjects/Airflow_Project/airflow-pipeline-amanda-wink/output_files/'
@@ -47,24 +51,36 @@ def Combine(root_out=root_out):
     WIH_2017 = pd.concat([NWHL_2017, CWHL_2017_format], ignore_index=True)
     WIH_2017.to_csv(root_out + 'W_IceHockey_2017.csv', index=False)
     
-def convert_to_sql(root_out=root_out):
+def convert_to_sql(root_out=root_out, engine=m_engine):
     ih_df = pd.read_csv(root_out + 'W_IceHockey_2017.csv')
-    pw=os.getenv('MYSQL')
-    str_sql='mysql+mysqlconnector://amanda_w:'+pw+'@localhost'
-    engine=create_engine(str_sql)
-    ih_df.to_sql(name='w_h', con=engine, schema='hockey', if_exists='replace')
+    if engine.has_table('w_h'):
+        engine.execute('DROP TABLE w_h;')
+    ih_df.to_sql(name='w_h', con=engine)
     engine.dispose()
 
-def print_stats():
-    pw=os.getenv('MYSQL')
-    str_sql='mysql+mysqlconnector://amanda_w:'+pw+'@localhost/hockey'
-    engine=create_engine(str_sql)
+def print_stats(engine=m_engine):
     with engine.connect() as connection:
-        result = connection.execute('select G, Player, No, League, Team from w_h order by G DESC LIMIT 5;')
-        print_results = result.fetchall()
-        print("Top Goal Scorers 2017 \n")
-        for row in range(len(print_results)):
-            for val in print_results[row]:
+        result_CWHL = connection.execute(
+            'select G, Player, No, League, Team from w_h where League = "CWHL" order by G DESC LIMIT 5;')
+        result_NWHL = connection.execute(
+            'select G, Player, No, League, Team from w_h where League = "NWHL" order by G DESC LIMIT 5;')
+        result_all = connection.execute('select G, Player, No, League, Team from w_h order by G DESC LIMIT 20;')
+        print_CWHL_results = result_CWHL.fetchall()
+        print_NWHL_results = result_NWHL.fetchall()
+        print_all_results = result_all.fetchall()
+        print("Top CWHL Goal Scorers 2017 \n")
+        for row in range(len(print_CWHL_results)):
+            for val in print_CWHL_results[row]:
+                print(str(val), end=" ")
+            print(" \n")
+        print("Top NWHL Goal Scorers 2017")
+        for row in range(len(print_NWHL_results)):
+            for val in print_NWHL_results[row]:
+                print(str(val), end=" ")
+            print(" \n")
+        print("Top Goal Scorers 2017")
+        for row in range(len(print_all_results)):
+            for val in print_all_results[row]:
                 print(str(val), end=" ")
             print(" \n")
 
@@ -75,7 +91,6 @@ dag = DAG('NWHL_2017_table_format', description='Formats NWHL 2017 data',
 NWHL_2017_operator = PythonOperator(task_id='NWHL_2017_format', python_callable=NWHL_2017_format, dag=dag)
 CWHL_2017_operator = PythonOperator(task_id='CWHL_2017_format', python_callable=CWHL_2017_format, dag=dag)
 Combine_operator = PythonOperator(task_id='Combine_tables', python_callable=Combine, dag=dag)
-SQL_operator = PythonOperator(task_id='Upload_db', python_callable=convert_to_sql, dag=dag)
 Print_stat_operator = PythonOperator(task_id='Print_stat', python_callable=print_stats, dag=dag)
 
 
